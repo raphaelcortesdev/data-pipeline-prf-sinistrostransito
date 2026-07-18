@@ -14,6 +14,7 @@ data/02_silver/*
 data/03_gold/*
 dags/*
 warehouse/*
+imgs/*
 
 !data/01_bronze/.gitkeep
 !data/02_silver/.gitkeep

@@ -1,3 +1,14 @@
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-2.1.4+-150458?logo=pandas&logoColor=white)
+![Pandera](https://img.shields.io/badge/Pandera-Schema-3D85C6)
+![Parquet](https://img.shields.io/badge/Storage-Parquet-008080)
+![Docker](https://img.shields.io/badge/Docker-Container-2496ED?logo=docker&logoColor=white)
+![Status](https://img.shields.io/badge/status-em%20desenvolvimento-yellow)
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/raphael-cortes-b0b544305/)
+[![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=flat&logo=instagram&logoColor=white)](https://www.instagram.com/raphaelcorte_s/)
+[![WhatsApp](https://img.shields.io/badge/WhatsApp-25D366?style=flat&logo=whatsapp&logoColor=white)](https://wa.me/5561998294492)
+
 # PRF Data Engineering Pipeline
 
 Projeto de Engenharia de Dados end-to-end de sinistros de trânsito da PRF (Polícia Rodoviária Federal) usando pipelines de dados profissionais, arquitetura medallion, orquestração com Apache Airflow e carga dos dados em um Data Warehouse SQL.
@@ -149,12 +160,27 @@ Status: Em análise
 ## 🚀 Como Usar
 
 ### Pré-requisitos
- 
+
 ```bash
 # Python 3.11+
 python --version
- 
-# Instalar dependências
+```
+
+### Setup do Ambiente
+
+**Opção 1: Conda (recomendado)**
+```bash
+conda create -n prf-pipeline python=3.11
+conda activate prf-pipeline
+pip install -r requirements.txt
+```
+
+**Opção 2: venv (padrão Python)**
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# ou
+venv\Scripts\activate  # Windows
 pip install -r requirements.txt
 ```
 
