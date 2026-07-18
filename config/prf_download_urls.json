@@ -1,0 +1,16 @@
+{
+  "description": "URLs de download dos dados PRF (Acidentes agrupados por pessoa, 2017-2025)",
+  "source": "https://www.gov.br/prf/pt-br/acesso-a-informacao/dados-abertos/dados-abertos-da-prf",
+  "note": "URLs do Google Drive - formato: https://drive.google.com/file/d/{FILE_ID}/view",
+  "urls": {
+    "2017": "https://drive.google.com/file/d/1mw2CerP_ZEZwREy4WYM_Kxd4rjUHQjbk/view", 
+    "2018": "https://drive.google.com/file/d/1Ja1dN8R_-Dw7sjQVo63UQHicO3jfyzIS/view",
+    "2019": "https://drive.google.com/file/d/14r_9zudjjndgcnjRddzD5lvn9MX5VvZZ/view",
+    "2020": "https://drive.google.com/file/d/1iQvs2D9a2XO9vIukrjEIIhtjzkNkgD7Z/view",
+    "2021": "https://drive.google.com/file/d/15W_l07-6taOh8Ycn8uk2Er9PnSj0vq3f/view",
+    "2022": "https://drive.google.com/file/d/1sd8YIqIHapYaxQeaa-6yeWMdVLTl6hgD/view",
+    "2023": "https://drive.google.com/file/d/1-Yk6TV00CH3PixTkKmkoUJQsNiUc5xLm/view",
+    "2024": "https://drive.google.com/file/d/14lVfqdoE2gxDliaKZu7K9Mx6847maPtl/view",
+    "2025": "https://drive.google.com/file/d/1-Gp9S-ALO0D1nT8S_OKoC8xlW7BY8F82/view"
+  }
+}

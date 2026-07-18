@@ -1,0 +1,49 @@
+# Testes para aprendizado
+testes_loop.py
+testes_unicos.py
+listar_info.py
+df_tipos.csv
+validacao_antigo.py
+limpeza_antigo.py
+
+# Dados brutos e validados
+data/01_bronze/*
+data/02_silver/*
+data/03_gold/*
+
+# Vscode
+.vscode
+
+# Variáveis de ambiente
+.env
+.env.local
+
+# Python
+__pycache__/
+*.pyc
+.Python
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# necessário remover do gitignore quando implementados:
+docker-compose.yaml
+Dockerfile
+warehouse/*
+dags/*
