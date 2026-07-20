@@ -1,4 +1,4 @@
-# --- Lista Negra (Arquivos que você NÃO quer) ---
+# arquivos
 testes_loop.py
 testes_unicos.py
 listar_info.py
@@ -8,7 +8,7 @@ limpeza_antigo.py
 Dockerfile
 docker-compose.yaml
 
-# --- Pastas (ignora conteúdo, mantém .gitkeep) ---
+# Pastas (mantem .gitkeep)
 data/01_bronze/*
 data/02_silver/*
 dags/*
@@ -18,7 +18,7 @@ dags/*
 
 !dags/.gitkeep
 
-# --- O resto das suas configurações ---
+# Geral
 .env
 .env.local
 __pycache__/
