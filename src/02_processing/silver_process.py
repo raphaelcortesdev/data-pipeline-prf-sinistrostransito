@@ -10,16 +10,18 @@ O que faz:
     1. Estabelece um loop que captura qualquer arquivo .csv em data/bronze (Camada Bronze)
     2. Itera sobre cada arquivo
     3. Limpa, transforma e enriquece cada uma das colunas pré-definidas em def limpar_dados(df)
-    4. Valida o schema dos dados com Pandera
-    5. Se passar na validação → salva em data/silver (Camada Silver)
-    6. Se falhar na validação → registra erro no terminal e continua pro próximo arquivo
-    7. Gera resumo final com sucessos e falhas
+    4. Normaliza acentos em todas as colunas string (UTF-8 compatibility pra PostgreSQL)
+    5. Valida o schema dos dados com Pandera
+    6. Se passar na validação → salva em data/silver (Camada Silver)
+    7. Se falhar na validação → registra erro no terminal e continua pro próximo arquivo
+    8. Gera resumo final com sucessos e falhas
 '''
 
 import pandas as pd
 import pandera as pa
 from pathlib import Path
 import warnings
+import unicodedata
 
 # Suprime o SettingWithCopyWarning
 warnings.filterwarnings('ignore', category=pd.errors.SettingWithCopyWarning)
@@ -46,8 +48,8 @@ schema = pa.DataFrameSchema(
         "pesid": pa.Column(pa.Int64, nullable=False, unique=True),
         "data_hora": pa.Column(pa.DateTime, nullable=False),
         "dia_semana": pa.Column(pa.String, pa.Check.isin([
-            "segunda-feira", "terça-feira", "quarta-feira", 
-            "quinta-feira", "sexta-feira", "sábado", "domingo"
+            "segunda-feira", "terca-feira", "quarta-feira", 
+            "quinta-feira", "sexta-feira", "sabado", "domingo"
         ])),
         "uf": pa.Column(pa.String, nullable=False),
         "br": pa.Column(pa.Int16, pa.Check.ge(0), nullable=True),
@@ -56,16 +58,16 @@ schema = pa.DataFrameSchema(
         "causa_acidente": pa.Column(pa.String, nullable=True),
         "tipo_acidente": pa.Column(pa.String, nullable=True),
         "classificacao_acidente": pa.Column(pa.String, pa.Check.isin([
-            "Com Vítimas Fatais", "Com Vítimas Feridas", "Sem Vítimas"
+            "Com Vitimas Fatais", "Com Vitimas Feridas", "Sem Vitimas"
         ]), nullable=True),
         "fase_dia": pa.Column(pa.String, pa.Check.isin([
             "Amanhecer", "Pleno dia", "Anoitecer", "Plena Noite"
         ]), nullable=True),
         "sentido_via": pa.Column(pa.String, pa.Check.isin(["Crescente", "Decrescente"]), nullable=True),
-        "condicao_metereologica": pa.Column(pa.String, nullable=True),
-        "tipo_pista": pa.Column(pa.String, pa.Check.isin(["Simples", "Múltipla", "Dupla"]), nullable=True),
+        "condicao_meteorologica": pa.Column(pa.String, nullable=True),
+        "tipo_pista": pa.Column(pa.String, pa.Check.isin(["Simples", "Multipla", "Dupla"]), nullable=True),
         "tracado_via": pa.Column(pa.String, nullable=True),
-        "uso_solo": pa.Column(pa.String, pa.Check.isin(["Não", "Sim"]), nullable=True),
+        "uso_solo": pa.Column(pa.String, pa.Check.isin(["Nao", "Sim"]), nullable=True),
         "id_veiculo": pa.Column(pa.Int32, nullable=True),
         "tipo_veiculo": pa.Column(pa.String, nullable=True),
         "marca": pa.Column(pa.String, nullable=True),
@@ -74,7 +76,7 @@ schema = pa.DataFrameSchema(
             "Cavaleiro", "Condutor", "Passageiro", "Pedestre", "Testemunha"
         ]), nullable=True),
         "estado_fisico": pa.Column(pa.String, pa.Check.isin([
-            "Ileso", "Lesões Graves", "Lesões Leves", "Óbito"
+            "Ileso", "Lesoes Graves", "Lesoes Leves", "Obito"
         ]), nullable=True),
         "idade": pa.Column(pa.Int16, pa.Check.in_range(0, 110), nullable=True),
         "sexo": pa.Column(pa.String, pa.Check.isin(["Masculino", "Feminino"]), nullable=True),
@@ -91,6 +93,31 @@ schema = pa.DataFrameSchema(
     coerce=False,
     strict=False
 )
+
+def remover_acentos(texto):
+    '''
+    Remove acentos e caracteres especiais de strings.
+    Converte "Lesões Graves" -> "Lesoes Graves", "São Paulo" -> "Sao Paulo", etc.
+    Necessário para compatibilidade UTF-8 com PostgreSQL no Windows.
+    
+    Args:
+        texto: valor string (ou None/NaN)
+        
+    Returns:
+        String sem acentos (ou None se entrada for nula)
+    '''
+    
+    if pd.isna(texto):
+        return texto
+    if not isinstance(texto, str):
+        return texto
+    
+    # unicodedata decompõe caracteres acentuados
+    # NFD = decomposição normal (separa acentos dos caracteres)
+    nfd = unicodedata.normalize('NFD', texto)
+    
+    # Remove diacríticos (categoria Mn = Nonspacing Mark)
+    return ''.join(c for c in nfd if unicodedata.category(c) != 'Mn')
 
 # ============================================================================
 # FUNÇÃO DE LIMPEZA
@@ -110,16 +137,16 @@ def limpar_dados(df):
     df = df.copy()
     
     # 1) id
-    # Coluna que contém o identificador único do acidente. Não pode ter nulos e deve ser do tipo int32. Pode repetir
+    # Coluna que contém o identificador único do acidente. Não pode ter nulos e deve ser int32. Pode repetir
     df['id'] = pd.to_numeric(df['id'], errors='coerce').astype("int32") #int32: não permite nulo e armazena valores de -2.147.483.648 a 2.147.483.647
 
     # 2) pesid
-    # Coluna que contém o identificador único do envolvido no sinistro. Não pode ter nulos e deve ser do tipo int64. Não pode repetir
+    # Coluna que contém o identificador único do envolvido no sinistro. Não pode ter nulos e deve ser int64. Não pode repetir
     df = df.drop_duplicates(subset=['pesid'], keep='first') # Remove duplicatas. o identificador é único
     df['pesid'] = pd.to_numeric(df['pesid'], errors='coerce').astype("int64") #int64: não permite nulo e armazena valores de -9.223.372.036.854.775.808 a 9.223.372.036.854.775.807
 
     # 3) data_inversa e horario
-    # data no formato YYYY-MM-DD str. Não pode ter nulos e deve ser do tipo datetime64[ns]
+    # data no formato YYYY-MM-DD str. Não pode ter nulos e deve ser datetime64[ns]
     # horario no formato HH:MM:SS str
     # Concatena data_inversa e horario em uma nova coluna chamada data_hora, do tipo datetime64[ns]
     df['data_inversa'] = df['data_inversa'].str.strip() # Remove espaços em branco no início e no final da string
@@ -132,37 +159,42 @@ def limpar_dados(df):
     # 4) dia_semana
     # Nativamente object, valida como str
     df['dia_semana'] = df['dia_semana'].str.strip() # Remove espaços em branco no início e no final da string
+    df['dia_semana'] = df['dia_semana'].apply(remover_acentos)  # Normaliza acentos em dia_semana ("terça-feira" → "terca-feira")
 
     # 5) uf
     # Nativamente object, valida como str
     df['uf'] = df['uf'].str.strip() # Remove espaços em branco no início e no final da string
 
     # 6) br
-    # Armazena o número da rodovia federal. Deve ser do tipo Int16, aceita nulos e armazena valores de -32.768 a 32.767
+    # Armazena o número da rodovia federal. Deve ser Int16, aceita nulos e armazena valores de -32.768 a 32.767
     df['br'] = pd.to_numeric(df['br'], errors='coerce').astype("Int16") # Converte br para Int16, aceita nulos e armazena valores de -32.768 a 32.767
     df.loc[df['br'] < 0, 'br'] = pd.NA # Substitui valores negativos por nulos, caso existam
     df.loc[df['br'] == 0, 'br'] = pd.NA # Substitui valores 0 por nulos, caso existam
 
     # 7) km
-    # Armazena o quilometragem. Deve ser do tipo float, aceita nulos e armazena valores de -1.797.693.134.862.315.7E+308 a 1.797.693.134.862.315.7E+308
+    # Armazena o quilometragem. Deve ser float, aceita nulos e armazena valores de -1.797.693.134.862.315.7E+308 a 1.797.693.134.862.315.7E+308
     df['km'] = df['km'].str.replace(',', '.').astype(float) # substitui ',' por '.' para evitar erros de conversão, e converte para float
 
     # 8) municipio
     # Nativamente object, valida como str
     df['municipio'] = df['municipio'].str.strip() # Remove espaços em branco no início e no final da string
+    df['municipio'] = df['municipio'].apply(remover_acentos) # Normaliza acentos em municipio
 
     # 9) causa_acidente
     # Nativamente object, valida como str
     df['causa_acidente'] = df['causa_acidente'].str.strip() # Remove espaços em branco no início e no final da string
+    df['causa_acidente'] = df['causa_acidente'].apply(remover_acentos) # Normaliza acentos em causa_acidente
 
     # 10) tipo_acidente
     # Nativamente object, valida como str
     df['tipo_acidente'] = df['tipo_acidente'].str.strip() # Remove espaços em branco no início e no final da string
+    df['tipo_acidente'] = df['tipo_acidente'].apply(remover_acentos) # Normaliza acentos em tipo_acidente
 
     # 11) classificacao_acidente
     # Nativamente object, valida como str
     df['classificacao_acidente'] = df['classificacao_acidente'].str.strip() # Remove espaços em branco no início e no final da string
     df['classificacao_acidente'] = df['classificacao_acidente'].replace('NA', pd.NA) # Substitui valores 'NA' por null
+    df['classificacao_acidente'] = df['classificacao_acidente'].apply(remover_acentos) # Normaliza acentos em classificacao_acidente ("Vítimas" → "Vitimas")
 
     # 12) fase_dia
     # Nativamente object, valida como str
@@ -172,22 +204,30 @@ def limpar_dados(df):
     # Nativamente object, valida como str
     df['sentido_via'] = df['sentido_via'].str.strip() # Remove espaços em branco no início e no final da string
     df['sentido_via'] = df['sentido_via'].replace('Não Informado', pd.NA) # Substitui valores 'Não Informado' por null
+    df['sentido_via'] = df['sentido_via'].apply(remover_acentos) # Normaliza acentos em sentido_via ("Não" → "Nao")
     
-    # 14) condicao_metereologica
+    # 14) condicao_meteorologica
     # Nativamente object, valida como str
-    df['condicao_metereologica'] = df['condicao_metereologica'].str.strip() # Remove espaços em branco no início e no final da string
+    #no csv original, o nome do campo esta como condicao_METEREOLOGICA
+    df = df.rename(columns={'condicao_metereologica': 'condicao_meteorologica'}) # Renomeia
+    df['condicao_meteorologica'] = df['condicao_meteorologica'].str.strip() # Remove espaços em branco no início e no final da string
+    df['condicao_meteorologica'] = df['condicao_meteorologica'].replace('Ignorado', pd.NA) # Normaliza valores ausentes
+    df['condicao_meteorologica'] = df['condicao_meteorologica'].apply(remover_acentos) # Normaliza acentos em condicao_metereologica
 
     # 15) tipo_pista
     # Nativamente object, valida como str
     df['tipo_pista'] = df['tipo_pista'].str.strip() # Remove espaços em branco no início e no final da string
+    df['tipo_pista'] = df['tipo_pista'].apply(remover_acentos) # Normaliza acentos em tipo_pista ("Múltipla" → "Multipla")
 
     # 16) tracado_via
     # Nativamente object, valida como str
     df['tracado_via'] = df['tracado_via'].str.strip() # Remove espaços em branco no início e no final da string
+    df['tracado_via'] = df['tracado_via'].apply(remover_acentos) # Normaliza acentos em tracado_via
 
     # 17) uso_solo
     # Nativamente object, valida como str
     df['uso_solo'] = df['uso_solo'].str.strip() # Remove espaços em branco no início e no final da string
+    df['uso_solo'] = df['uso_solo'].apply(remover_acentos) # Normaliza acentos em uso_solo ("Não" → "Nao")
 
     # 18) id_veiculo
     df['id_veiculo'] = pd.to_numeric(df['id_veiculo'], errors='coerce').astype("Int32") # converte para Int32, que aceita nulos caso existam.
@@ -195,9 +235,11 @@ def limpar_dados(df):
     # 19) tipo_veiculo
     # Nativamente object, valida como str
     df['tipo_veiculo'] = df['tipo_veiculo'].str.strip() # Remove espaços em branco no início e no final da string
+    df['tipo_veiculo'] = df['tipo_veiculo'].apply(remover_acentos) # Normaliza acentos em tipo_veiculo
 
     # 20) marca
     df['marca'] = df['marca'].str.strip() # Remove espaços em branco no início e no final da string
+    df['marca'] = df['marca'].apply(remover_acentos) # Normaliza acentos em marca
 
     # 21) ano_fabricacao_veiculo
     df['ano_fabricacao_veiculo'] = pd.to_numeric(df['ano_fabricacao_veiculo'], errors='coerce')
@@ -213,6 +255,7 @@ def limpar_dados(df):
     # Nativamente object, valida como str
     df['estado_fisico'] = df['estado_fisico'].str.strip()
     df.loc[~df['estado_fisico'].isin(['Ileso', 'Lesões Graves', 'Lesões Leves', 'Óbito']), 'estado_fisico'] = pd.NA
+    df['estado_fisico'] = df['estado_fisico'].apply(remover_acentos) # Normaliza acentos em estado_fisico ("Lesões Graves" → "Lesoes Graves", "Óbito" → "Obito")
 
     # 24) idade
     df['idade'] = pd.to_numeric(df['idade'], errors='coerce')
@@ -247,8 +290,16 @@ def limpar_dados(df):
 
     # 32) regional, 33) delegacia, 34) uop
     df['regional'] = df['regional'].str.strip()
+    # ALTERAÇÃO: Normalizar acentos em regional
+    df['regional'] = df['regional'].apply(remover_acentos)
+    
     df['delegacia'] = df['delegacia'].str.strip()
+    # ALTERAÇÃO: Normalizar acentos em delegacia
+    df['delegacia'] = df['delegacia'].apply(remover_acentos)
+    
     df['uop'] = df['uop'].str.strip()
+    # ALTERAÇÃO: Normalizar acentos em uop
+    df['uop'] = df['uop'].apply(remover_acentos)
     
     return df
 
@@ -258,7 +309,7 @@ def limpar_dados(df):
 
 def main():
     '''
-    Processa todos os CSVs da camada Bronze, executa limpeza e validação,
+    Processa todos os CSVs da camada Bronze, executa limpeza, normalização de acentos e validação,
     e salva os dados validados na Silver layer - data/02_silver .
     '''
     

@@ -11,16 +11,12 @@ docker-compose.yaml
 # --- Pastas (ignora conteúdo, mantém .gitkeep) ---
 data/01_bronze/*
 data/02_silver/*
-data/03_gold/*
 dags/*
-warehouse/*
-imgs/*
 
 !data/01_bronze/.gitkeep
 !data/02_silver/.gitkeep
-!data/03_gold/.gitkeep
+
 !dags/.gitkeep
-!warehouse/.gitkeep
 
 # --- O resto das suas configurações ---
 .env
