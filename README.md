@@ -270,7 +270,7 @@ Julho de 2026
 
 ## 👨‍💻 Autor
 
-**Raphael Cortes Gomes - Cientista de Dados**
+**Raphael Cortes Gomes - Cientista de Dados/Sanitarista**
 
 Entre em contato ou acompanhe meu trabalho através dos links abaixo:
 

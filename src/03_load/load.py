@@ -3,6 +3,7 @@ from psycopg2 import sql, extras
 from pathlib import Path
 import sys
 import os
+import time
 from dotenv import load_dotenv
 import pandas as pd
 
@@ -22,7 +23,7 @@ DB_CONFIG = {
 def execute_batch_insert(cursor, table, columns, data, conflict_keys):
     """Função genérica para inserir dados únicos ignorando conflitos (ON CONFLICT DO NOTHING)."""
     if not data:
-        return
+        return 0
     
     col_names = ", ".join(columns)
     placeholders = ", ".join(["%s"] * len(columns))
@@ -34,27 +35,16 @@ def execute_batch_insert(cursor, table, columns, data, conflict_keys):
         ON CONFLICT ({conflict_cols}) DO NOTHING
     """
     psycopg2.extras.execute_batch(cursor, query, data, page_size=5000)
+    return len(data)
 
 def load_dimensions(conn, cursor):
     '''
     Função que valida e tranforma tipos pandas para tipos nativos de python e faz o insert em batch no Data Warehouse.
     É preciso limpar e validar novamente pois o psycopg2 tem problemas de compatibilidade com tipagem não nativa python.
     '''
-
-    '''
-    df_[dim]: 
-        1) recebe o registro dos campos relevantes àquela dimensão
-        2) remove campos null -> .dropna(subset=[campo_chave1, campo_chave2...])
-        2) remove duplicatas -> .drop_duplicates(subset=campo_chave1, campo_chave2...)
-
-    dados_[dim]: 
-        1) converte em objetos nativos python -> .astype(object)
-        2) converte campos  pd.NA (null pandas) em None (null nativo python) -> .where(pd.notnull(df_[dim]), None)
-    
-    '''
-
     for parquet in sorted(SILVER_DIR.glob('*.parquet')):
         print(f"\n⌛ Processando dimensões do arquivo {parquet.name}...")
+        start_time = time.time()
         
         df = pd.read_parquet(parquet)
         
@@ -108,10 +98,13 @@ def load_dimensions(conn, cursor):
                              dados_veiculo, ['id_acidente_original', 'id_veiculo_original'])
 
         conn.commit()
-        print(f"✅ Dimensões populadas com sucesso para {parquet.name}!")
+        
+        elapsed_time = time.time() - start_time
+        print(f"✅ Dimensões populadas em {elapsed_time:.2f} segundos para {parquet.name}!")
         
 def insert_fato(conn, cursor):
     print("\n🚀 Carregando dimensões em memória (Cache) para a tabela Fato...")
+    start_cache_time = time.time()
     
     # Transforma as tabelas recém-criadas no banco em Dicionários Python para busca instantânea
     cursor.execute("SELECT id_acidente_original, pesid_original, pk_pessoa FROM dim_pessoa")
@@ -135,8 +128,14 @@ def insert_fato(conn, cursor):
     cursor.execute("SELECT id_acidente_original, id_veiculo_original, pk_veiculo FROM dim_veiculo")
     cache_veiculo = {(row[0], row[1]): row[2] for row in cursor.fetchall()}
 
+    print(f"✅ Cache carregado em {time.time() - start_cache_time:.2f} segundos. Iniciando inserções...\n")
+
+    total_fatos_inseridos = 0
+
     for parquet in sorted(SILVER_DIR.glob('*.parquet')):
-        print(f"\n⌛ Populando tabela fato com os dados de {parquet.name}...")
+        ano = parquet.stem.replace('acidentes', '')
+        print(f"⌛ Populando tabela fato com os dados de {ano}...")
+        start_time = time.time()
         
         df = pd.read_parquet(parquet)
         df = df.where(pd.notnull(df), None)
@@ -145,14 +144,12 @@ def insert_fato(conn, cursor):
         linhas_ignoradas = 0
         
         for row in df.itertuples(index=False):
-            # Garante a conversão do pd.Timestamp nativo da Silver para objeto datetime puro do Python (requerido pelos dicionários)
             data_hora = row.data_hora.to_pydatetime() if row.data_hora is not None else None
             
             fk_pesid = cache_pessoa.get((row.id, row.pesid))
             fk_tempo = cache_tempo.get(data_hora)
             fk_local = cache_local.get((row.uf, row.municipio))
             
-            # Validação de integridade das chaves mais vitais
             if not fk_pesid or not fk_tempo or not fk_local:
                 linhas_ignoradas += 1
                 continue
@@ -164,6 +161,9 @@ def insert_fato(conn, cursor):
 
             lote_fatos.append((fk_pesid, fk_tempo, fk_local, fk_estrada, fk_clima, fk_classificacao, fk_veiculo))
 
+        qtd_registros = len(lote_fatos)
+        total_fatos_inseridos += qtd_registros
+
         if lote_fatos:
             query_insert = '''
                 INSERT INTO fato (fk_pesid, fk_tempo, fk_local, fk_estrada, fk_clima, fk_classificacao, fk_veiculo)
@@ -173,10 +173,17 @@ def insert_fato(conn, cursor):
             psycopg2.extras.execute_batch(cursor, query_insert, lote_fatos, page_size=5000)
             conn.commit()
             
+        elapsed_time = time.time() - start_time
+        
+        # Formata o número de registros com separador de milhar (ponto) para ficar mais legível
+        qtd_formatada = f"{qtd_registros:,}".replace(",", ".")
+        
+        print(f"✅ Tabela fato concluída para {ano}: {qtd_formatada} registros processados em {elapsed_time:.2f} segundos.")
+        
         if linhas_ignoradas > 0:
             print(f"⚠️  Aviso: {linhas_ignoradas} linhas foram puladas por falta de integridade com as dimensões base.")
-            
-        print(f"✅ Tabela fato concluída para {parquet.name}.")
+
+    return total_fatos_inseridos
 
 def main():
     try:
@@ -189,11 +196,16 @@ def main():
 
     try:
         print("▶️ Iniciando carga do Data Warehouse...")
+        global_start_time = time.time()
         
         load_dimensions(conn, cursor)
-        insert_fato(conn, cursor)
+        total_fatos = insert_fato(conn, cursor)
         
-        print("\n🎉 Carga total concluída com sucesso!")
+        global_elapsed = time.time() - global_start_time
+        total_fatos_formatado = f"{total_fatos:,}".replace(",", ".")
+        
+        print(f"\n🎉 Carga total concluída com sucesso!")
+        print(f"📊 Resumo: {total_fatos_formatado} registros inseridos na tabela Fato em {global_elapsed:.2f} segundos.")
         
     except Exception as e:
         print(f'❌ Erro grave durante a carga: {e}')
