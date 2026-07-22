@@ -5,11 +5,12 @@
 ![Docker](https://img.shields.io/badge/Docker-Container-2496ED?logo=docker&logoColor=white)
 ![Apache Airflow](https://img.shields.io/badge/Apache_Airflow-2.7.3-017CEE?logo=apache-airflow&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
-![Status](https://img.shields.io/badge/status-concluído-brightgreen)
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/raphael-cortes-b0b544305/)
 [![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=flat&logo=instagram&logoColor=white)](https://www.instagram.com/raphaelcorte_s/)
 [![WhatsApp](https://img.shields.io/badge/WhatsApp-25D366?style=flat&logo=whatsapp&logoColor=white)](https://wa.me/5561998294492)
+
+![Status](https://img.shields.io/badge/status-concluído-brightgreen)
 
 # PRF Data Engineering Pipeline
 
@@ -44,6 +45,71 @@ Este projeto implementa um **data engineering pipeline completo** para processar
 
 ---
 
+
+## 📂 Estrutura do Repositório
+```
+prf-sinistros-pipeline/
+│
+├── config/                              # Configurações
+│   └── prf_download_urls.json           # links para o download da base de dados
+│
+├── dags/                                # Orquestração
+│   └── prf_pipeline_dag.py              # DAG principal do Airflow com dependências lazy load
+│
+├── data/
+│   ├── bronze/                          # Dados brutos (CSVs originais)
+│   └── silver/                          # Dados limpos + validados (Parquets)
+│
+├── imgs/                                # Esquema visual da modelagem do Data Warehouse
+│   ├── modelagem_conceitual.png       
+│   └── modelagem_logica.png            
+│
+├── src/
+│   ├── ingestion/                       # Download e extração de dados
+│   │   └── download_prf_data.py
+│   ├── processing/                      # Limpeza + Validação unificadas
+│   │   └── silver_process.py
+│   └── load/                            # Carregamento no DW
+│       └── load.py                      # ETL com Cache em RAM e Batch Insert
+│
+├── warehouse/                           # Infraestrutura do Data Warehouse (Gold Layer)
+│   ├── modelagem_conceitual/
+│   │   └── modelagem_conceitual.brM3    # Arquivo do projeto com a modelagem conceitual do DW (brModelo)
+│   ├── modelagem_logica/
+│   │   └── modelagem_conceitual.brM3    # Arquivo do projeto com a modelagem lógica do DW (brModelo)
+│   ├── schema.sql                       # Schema PostgreSQL (Star Schema)
+│   └── setup.py                         # Setup do banco e execução do DDL
+│
+├── .env.example                         # Variáveis de ambiente (DB_HOST, senhas, chaves)
+├── docker-compose.yaml                  # Infraestrutura multi-container (Postgres + Airflow)
+├── Dockerfile                           # Imagem customizada do Airflow com dependências
+├── requirements.txt                     # Dependências Python
+└── README.md                            # Este arquivo
+```
+
+---
+## 📐 Modelagem do Data Warehouse
+![modelagem_logica.png](imgs\modelagem_logica.png)
+
+O Data Warehouse deste projeto foi estruturado utilizando a abordagem de **Modelagem Dimensional (Star Schema)** no PostgreSQL, desenhado especificamente para otimizar consultas analíticas (*OLAP*) e relatórios de inteligência sobre os sinistros de trânsito.
+
+### 🔹 Características do Modelo:
+
+* **Tabela Fato Central (`fato_acidentes`):** 
+  Armazena as métricas quantitativas e as chaves estrangeiras de cada ocorrência registrada, garantindo alta performance em agregações em larga escala (~1.5M de registros).
+  
+* **Tabelas Dimensão (`dim_*`):** 
+  Desnormalizadas de forma estratégica para contexto e filtragem eficiente, divididas em 7 eixos analíticos principais:
+  * `dim_pessoa`: Dados demográficos e de envolvimento das vítimas/condutores.
+  * `dim_tempo`: Granularidade temporal (ano, mês, dia da semana, horários).
+  * `dim_local`: Localização geográfica (estado, município, rodovia, quilômetro).
+  * `dim_clima`: Condições meteorológicas no momento do fato.
+  * `dim_pista`: Características físicas da via (tipo de pista, traçado, sentido).
+  * `dim_veiculo`: Informações sobre os veículos envolvidos.
+  * `dim_classificacao`: Gravidade e tipo do acidente (com vítima fatal, feridos, sem vítima, etc.).
+
+
+---
 ## 🚀 Como Usar (Ambiente Docker)
 
 ### 1. Pré-requisitos e Configuração
@@ -107,8 +173,8 @@ python src/load/load.py
 ## 📁 Arquitetura e Fluxo
 
 ```text
-Bronze (CSV)       →        Silver (Parquet)      →       Gold (DW PostgreSQL)
-data/bronze/       →        data/silver/          →       Star Schema (Docker Container)
+Bronze (CSV)          →     Silver (Parquet)         →    Gold (DW PostgreSQL)
+data/bronze/          →     data/silver/             →    Star Schema (Docker Container)
 ├─ acidentes2017.csv  →     ├─ acidentes2017.parquet →    ├─ fato
 ├─ ...                →     └─ ...                   →    ├─ dim_pessoa, dim_tempo, etc.
 ```
