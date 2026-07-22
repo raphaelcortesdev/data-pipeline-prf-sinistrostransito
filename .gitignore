@@ -1,22 +1,15 @@
-# arquivos
-testes_loop.py
-testes_unicos.py
-listar_info.py
-df_tipos.csv
-validacao_antigo.py
-limpeza_antigo.py
-Dockerfile
-docker-compose.yaml
+# Airflow local files
+airflow.cfg
+airflow.db
+airflow-webserver.pid
+webserver_config.py
 
 # Pastas (mantem .gitkeep)
-data/01_bronze/*
-data/02_silver/*
-dags/*
+data/bronze/*
+data/silver/*
+!data/bronze/.gitkeep
+!data/silver/.gitkeep
 
-!data/01_bronze/.gitkeep
-!data/02_silver/.gitkeep
-
-!dags/.gitkeep
 
 # Geral
 .env

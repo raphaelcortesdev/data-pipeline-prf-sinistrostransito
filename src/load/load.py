@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import pandas as pd
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-SILVER_DIR = BASE_DIR / "data" / "02_silver"
+SILVER_DIR = BASE_DIR / "data" / "silver"
 
 load_dotenv()
 

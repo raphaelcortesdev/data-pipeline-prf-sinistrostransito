@@ -31,8 +31,8 @@ warnings.filterwarnings('ignore', category=pd.errors.SettingWithCopyWarning)
 # ============================================================================
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-BRONZE_DIR = BASE_DIR / "data" / "01_bronze"
-SILVER_DIR = BASE_DIR / "data" / "02_silver"
+BRONZE_DIR = BASE_DIR / "data" / "bronze"
+SILVER_DIR = BASE_DIR / "data" / "silver"
 
 # Garante que as pastas existam antes de processar
 BRONZE_DIR.mkdir(parents=True, exist_ok=True)

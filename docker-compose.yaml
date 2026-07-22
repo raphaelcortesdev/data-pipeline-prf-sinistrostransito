@@ -1,0 +1,185 @@
+# ============================================================================
+# DOCKER COMPOSE - PRF PIPELINE (ORCHESTRATION)
+# ============================================================================
+#
+# OBJETIVO:
+#   Orquestrar todo o pipeline PRF em containers Docker:
+#   - PostgreSQL 18 (Data Warehouse)
+#   - Apache Airflow 2.7.3 (Orquestrador)
+#   - Seu projeto Python (scripts de ingestion, processing, load)
+#
+# COMO USAR:
+#   docker-compose up -d          # Subir tudo em background
+#   docker-compose logs -f        # Ver logs em tempo real
+#   docker-compose down           # Parar tudo
+#   docker-compose down -v        # Parar e deletar volumes (cuidado!)
+#
+# ACESSO:
+#   Airflow UI: http://localhost:8080
+#   PostgreSQL: localhost:5432
+#
+# ESTRUTURA DE VOLUMES (dados persistem no seu PC):
+#   ./data/                       → /app/data/ (CSVs, Parquets)
+#   ./src/                        → /app/src/ (Scripts Python)
+#   ./dags/                       → /app/dags/ (DAGs Airflow)
+#   ./warehouse/                  → /app/warehouse/ (Schema SQL)
+#   ./config/                     → /app/config/ (URLs, config)
+#
+# ============================================================================
+
+version: '3.8'
+
+# ============================================================================
+# VOLUMES NOMEADOS (Persistência de dados)
+# ============================================================================
+volumes:
+  # Volume do PostgreSQL: banco de dados persiste mesmo se container cair
+  postgres_data:
+    driver: local
+  
+  # Volume do Airflow: logs, banco SQLite, histórico de execuções
+  airflow_data:
+    driver: local
+
+# ============================================================================
+# SERVIÇOS (Containers)
+# ============================================================================
+services:
+
+  # ╔════════════════════════════════════════════════════════════════════════╗
+  # ║                         POSTGRESQL 18                                  ║
+  # ║            Data Warehouse (DW) - Armazena dados processados            ║
+  # ╚════════════════════════════════════════════════════════════════════════╝
+  
+  postgres:
+    # Usar imagem oficial PostgreSQL 16
+    image: postgres:16-alpine
+    
+    # Nome do container (para referências internas)
+    container_name: prf-postgres
+    
+    # Variáveis de ambiente (credenciais do banco)
+    environment:
+      # Senha do usuário root (postgres)
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-airflow}
+      
+      # Banco de dados padrão a criar
+      POSTGRES_DB: ${DB_NAME:-prf_dw}
+      
+      # Usuário padrão (postgres)
+      POSTGRES_USER: ${DB_USER:-postgres}
+    
+    # Portas: <porta_host>:<porta_container>
+    ports:
+      - "5432:5432"
+    
+    # Volumes: onde os dados do BD são armazenados
+    volumes:
+      # Volume nomeado: persiste dados mesmo se container deletar
+      - postgres_data:/var/lib/postgresql/data
+      
+      # Volume bind: mapeia arquivo SQL para inicializar banco (opcional)
+      # - ./warehouse/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    
+    # Health check: verifica se PostgreSQL está pronto
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 30s
+      retries: 10
+    
+    # Reiniciar automaticamente se falhar
+    restart: unless-stopped
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ╔════════════════════════════════════════════════════════════════════════╗
+  # ║                      APACHE AIRFLOW 2.7.3                              ║
+  # ║       Orquestrador: coordena download → processing → load              ║
+  # ╚════════════════════════════════════════════════════════════════════════╝
+  
+  airflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prf-airflow
+    environment:
+      AIRFLOW__CORE__DAGS_FOLDER: /app/dags
+      AIRFLOW__CORE__PLUGINS_FOLDER: /app/plugins
+      AIRFLOW__CORE__BASE_LOG_FOLDER: /app/logs
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
+      AIRFLOW__CORE__UNIT_TEST_MODE: 'False'
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-airflow}@postgres:5432/${DB_NAME:-prf_dw}
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__WEBSERVER__SECRET_KEY: "senha_secreta_compartilhada_123"
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./dags:/app/dags
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./config:/app/config
+      - ./warehouse:/app/warehouse
+      - ./.env:/app/.env:ro
+      - airflow_data:/app/logs
+    command: >
+      bash -c "airflow db init &&
+               sleep 5 &&
+               airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || airflow users update --username admin --password admin &&
+               airflow webserver"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ╔════════════════════════════════════════════════════════════════════════╗
+  # ║                      AIRFLOW SCHEDULER                                 ║
+  # ║    Monitora DAGs e dispara tasks conforme schedule (ou manual)         ║
+  # ╚════════════════════════════════════════════════════════════════════════╝
+  
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prf-airflow-scheduler
+    environment:
+      AIRFLOW__CORE__DAGS_FOLDER: /app/dags
+      AIRFLOW__CORE__PLUGINS_FOLDER: /app/plugins
+      AIRFLOW__CORE__BASE_LOG_FOLDER: /app/logs
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
+      AIRFLOW__CORE__UNIT_TEST_MODE: 'False'
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-airflow}@postgres:5432/${DB_NAME:-prf_dw}
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__WEBSERVER__SECRET_KEY: "senha_secreta_compartilhada_123"
+    volumes:
+      - ./dags:/app/dags
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./config:/app/config
+      - ./warehouse:/app/warehouse
+      - ./.env:/app/.env:ro
+      - airflow_data:/app/logs
+    command: airflow scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+# ============================================================================
+# NETWORKS (Comunicação entre containers)
+# ============================================================================
+
+# Docker cria uma network padrão automaticamente
+# Containers podem se comunicar pelo nome do serviço (ex: postgres, airflow)
+# Sem precisar de configuração extra
+
+# Se quiser customizar:
+networks:
+  default:
+    name: prf-network
+    driver: bridge
