@@ -6,7 +6,7 @@
 #   Orquestrar todo o pipeline PRF em containers Docker:
 #   - PostgreSQL 18 (Data Warehouse)
 #   - Apache Airflow 2.7.3 (Orquestrador)
-#   - Seu projeto Python (scripts de ingestion, processing, load)
+#   - Scripts de ingestion, processing, load
 #
 # COMO USAR:
 #   docker-compose up -d          # Subir tudo em background
@@ -46,10 +46,10 @@ volumes:
 # ============================================================================
 services:
 
-  # ╔════════════════════════════════════════════════════════════════════════╗
-  # ║                         POSTGRESQL 18                                  ║
-  # ║            Data Warehouse (DW) - Armazena dados processados            ║
-  # ╚════════════════════════════════════════════════════════════════════════╝
+  # ============================================================================
+  #                           POSTGRESQL 18                                  
+  #              Data Warehouse (DW) - Armazena dados processados            
+  # ============================================================================
   
   postgres:
     # Usar imagem oficial PostgreSQL 16
@@ -91,34 +91,50 @@ services:
     # Reiniciar automaticamente se falhar
     restart: unless-stopped
     
-    # Logging
+    # Configuração de rotação de logs
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
 
-  # ╔════════════════════════════════════════════════════════════════════════╗
-  # ║                      APACHE AIRFLOW 2.7.3                              ║
-  # ║       Orquestrador: coordena download → processing → load              ║
-  # ╚════════════════════════════════════════════════════════════════════════╝
+  # ============================================================================
+  #                        APACHE AIRFLOW 2.7.3                              
+  #         Orquestrador: coordena download -> processing -> load              
+  # ============================================================================
   
   airflow:
+    # Build da imagem customizada usando o Dockerfile do projeto
     build:
       context: .
       dockerfile: Dockerfile
+    # Nome do container para referências na rede interna
     container_name: prf-airflow
+    # Variáveis de ambiente de configuração do Airflow e conexões
     environment:
+      # Pastas principais do Airflow mapeadas no container
       AIRFLOW__CORE__DAGS_FOLDER: /app/dags
       AIRFLOW__CORE__PLUGINS_FOLDER: /app/plugins
       AIRFLOW__CORE__BASE_LOG_FOLDER: /app/logs
+      
+      # Desativa exemplos nativos do Airflow para deixar a UI limpa
       AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
       AIRFLOW__CORE__UNIT_TEST_MODE: 'False'
+      
+      # String de conexão com o Data Warehouse (PostgreSQL)
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-airflow}@postgres:5432/${DB_NAME:-prf_dw}
+      
+      # Executor utilizado para rodar as tarefas localmente
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      
+      # Chave secreta compartilhada para permitir a leitura de logs pelo Webserver
       AIRFLOW__WEBSERVER__SECRET_KEY: "senha_secreta_compartilhada_123"
+    
+    # Portas expostas: <porta_host>:<porta_container>
     ports:
       - "8081:8080"
+    
+    # Volumes: mapeia pastas locais para dentro do container e garante persistência
     volumes:
       - ./dags:/app/dags
       - ./src:/app/src
@@ -127,26 +143,37 @@ services:
       - ./warehouse:/app/warehouse
       - ./.env:/app/.env:ro
       - airflow_data:/app/logs
+    
+    # Comando de inicialização: inicializa o banco interno, cria/atualiza o admin e sobe o webserver
     command: >
       bash -c "airflow db init &&
                sleep 5 &&
                airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || airflow users update --username admin --password admin &&
                airflow webserver"
+    
+    # Dependências: só inicia após o PostgreSQL estar saudável e pronto
     depends_on:
       postgres:
         condition: service_healthy
+    
+    # Reiniciar automaticamente caso o container caia
     restart: unless-stopped
 
-  # ╔════════════════════════════════════════════════════════════════════════╗
-  # ║                      AIRFLOW SCHEDULER                                 ║
-  # ║    Monitora DAGs e dispara tasks conforme schedule (ou manual)         ║
-  # ╚════════════════════════════════════════════════════════════════════════╝
+  # ============================================================================
+  #                        AIRFLOW SCHEDULER                                 
+  #      Monitora DAGs e dispara tasks conforme schedule (ou manual)         
+  # ============================================================================
   
   airflow-scheduler:
+    # Reusa a mesma build do Airflow
     build:
       context: .
       dockerfile: Dockerfile
+    
+    # Nome do container do scheduler
     container_name: prf-airflow-scheduler
+    
+    # Mesmas variáveis de ambiente essenciais para sincronia com o Webserver
     environment:
       AIRFLOW__CORE__DAGS_FOLDER: /app/dags
       AIRFLOW__CORE__PLUGINS_FOLDER: /app/plugins
@@ -156,6 +183,8 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-airflow}@postgres:5432/${DB_NAME:-prf_dw}
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__WEBSERVER__SECRET_KEY: "senha_secreta_compartilhada_123"
+    
+    # Mesmos volumes compartilhados (crucial para o volume de logs e códigos)
     volumes:
       - ./dags:/app/dags
       - ./src:/app/src
@@ -164,10 +193,16 @@ services:
       - ./warehouse:/app/warehouse
       - ./.env:/app/.env:ro
       - airflow_data:/app/logs
+    
+    # Comando padrão: inicia o processo do scheduler em background
     command: airflow scheduler
+    
+    # Depende do banco de dados estar saudável
     depends_on:
       postgres:
         condition: service_healthy
+    
+    # Política de reinicialização automática
     restart: unless-stopped
 
 # ============================================================================

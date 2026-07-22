@@ -2,7 +2,7 @@
 # DOCKERFILE - AIRFLOW COM DEPENDÊNCIAS DO PROJETO PRF
 # ============================================================================
 
-# Use imagem base do Airflow 2.7.3 com Python 3.11
+# Imagem base do Airflow 2.7.3 com Python 3.11
 FROM apache/airflow:2.7.3-python3.11
 
 # Usuário que executa (airflow é criado pela imagem base)
@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y \
 
 # ============================================================================
 # CRIAR DIRETÓRIOS DO PROJETO E AJUSTAR PERMISSÕES
-# (Deve ser feito como root antes de mudar de usuário)
+# (feito como root antes de mudar de usuário)
 # ============================================================================
 
 # Criar estrutura de diretórios e dar permissão para o usuário airflow
