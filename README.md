@@ -89,7 +89,7 @@ prf-sinistros-pipeline/
 
 ---
 ## 📐 Modelagem do Data Warehouse
-![modelagem_logica.png](imgs\modelagem_logica.png)
+![Modelagem Lógica](./imgs/modelagem_logica.png)
 
 O Data Warehouse deste projeto foi estruturado utilizando a abordagem de **Modelagem Dimensional (Star Schema)** no PostgreSQL, desenhado especificamente para otimizar consultas analíticas (*OLAP*) e relatórios de inteligência sobre os sinistros de trânsito.
 
