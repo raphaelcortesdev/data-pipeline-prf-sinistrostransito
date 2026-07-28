@@ -193,7 +193,17 @@ python src/load/load.py
 
 ## 🛠️ Troubleshooting (Resolução de Problemas Comuns)
 
-Esta seção documenta desafios de rede e infraestrutura encontrados durante a containerização.
+Esta seção documenta desafios de rede e infraestrutura encontrados durante a containerização e execução do pipeline.
+
+### Sintoma
+Erro de Conexão no Banco (`connection refused` / `could not translate host name`)
+
+**Causa**
+ncompatibilidade do parâmetro `DB_HOST` no arquivo `.env` dependendo de como você está executando o projeto.
+
+**Solução**
+- Se você for rodar os scripts localmente via terminal/Conda (fora do Docker), o host do banco precisa ser `localhost` ou `127.0.0.1` para que sua máquina encontre a porta exposta do Postgres.
+- Se você for rodar via **Docker + Airflow**, os containers estão em uma rede interna própria. O Airflow não enxerga o banco como `localhost`, mas sim pelo nome exato do serviço do banco definido no `docker-compose.yaml`, que deve ser `postgres`. Portanto, altere a variável no seu `.env` para `DB_HOST=postgres` antes de subir os containers.
 
 ### Sintoma
 
@@ -221,21 +231,6 @@ O pgAdmin geralmente tenta alocar a porta fixa 5050. Se o Docker ou o Airflow es
 **Solução**
 
 Nas configurações do pgAdmin (ícone de engrenagem), desmarque a opção **"Fixed port number"**. O pgAdmin buscará dinamicamente uma porta ociosa e abrirá normalmente.
-
----
-
-### Sintoma
-
-As execuções funcionam, mas a UI não renderiza os logs da saída padrão (Stdout), exibindo **Client error '403 FORBIDDEN'**.
-
-**Causa**
-
-O Scheduler (que salva o log) e o Webserver (que lê o log) rodam em containers separados e não possuem uma chave de confiança mútua (Secret Key), bloqueando a comunicação interna.
-
-**Solução**
-
-Adicione a mesma variável de ambiente `AIRFLOW__WEBSERVER__SECRET_KEY` em ambos os serviços (`airflow` e `airflow-scheduler`) dentro do `docker-compose.yaml` para permitir a troca de informações, e garanta que o volume de logs esteja mapeado em ambos.
-
 ---
 
 ## 📜 Licença e Atualizações
