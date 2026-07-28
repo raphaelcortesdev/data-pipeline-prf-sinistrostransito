@@ -7,6 +7,7 @@ Este documento descreve a arquitetura do Data Warehouse (DW), as decisões de mo
 # 1. Modelagem do Banco de Dados (Schema Gold)
 
 A camada **Gold** foi construída seguindo o modelo **Star Schema (Esquema Estrela)**, separando as entidades descritivas (**dimensões**) dos eventos de negócio (**tabela fato**). Essa arquitetura favorece consultas analíticas, reduz redundância e melhora o desempenho das operações de BI.
+![modelagem_logica](../imgs/modelagem_logica.png)
 
 ## 1.1 Tipagem Estrita e Domínios (ENUM)
 

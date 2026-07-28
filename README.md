@@ -33,6 +33,16 @@ Este projeto implementa um **data engineering pipeline completo** para processar
 🔗 [Dados Abertos da PRF](https://www.gov.br/prf/pt-br/acesso-a-informacao/dados-abertos/dados-abertos-da-prf) (Agrupados por pessoa)
 
 ---
+## 🏆 Destaques e Métricas de Processamento
+
+A arquitetura foi desenhada para suportar alta volumetria e garantir integridade, lidando com desafios clássicos de bases governamentais legadas:
+
+*   **Volumetria Massiva:** Carga final de **4.863.193** registros consolidados na tabela fato central do Data Warehouse.
+*   **Performance Extrema:** Tempo de carregamento de quase duas décadas de histórico otimizado utilizando processamento em lotes e cache em memória RAM.
+*   **Qualidade de Dados:** Taxa de rejeição de apenas **≈ 0,3%** (15.561 registros), com descarte de linhas corrompidas e geração automática de relatórios de auditoria em `.csv`.
+*   **Otimização de Storage:** Remoção de variáveis redundantes (como feridos e mortos, facilmente obtidas via agregação SQL) para poupar espaço e processamento.
+*   **Segurança de Domínio:** Uso de tipos `ENUM` nativos no PostgreSQL para blindar variáveis categóricas, impedindo a inserção de valores inválidos.
+---
 
 ## 📚 Documentação Técnica Integrada
 
