@@ -5,13 +5,15 @@ import os
 import logging
 from dotenv import load_dotenv
 
+# Configuração básica do logging para exibir mensagens INFO
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+
 # Carregar variáveis de ambiente
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 # Configurações de conexão
-# Nota: 'postgres' é o hostname do container de banco no Docker Compose
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'postgres'),
     'port': int(os.getenv('DB_PORT', 5432)),
@@ -20,7 +22,7 @@ DB_CONFIG = {
     'database': os.getenv('DB_NAME', 'prf_dw')
 }
 
-def criar_banco():
+def criar_banco(fresh=False):
     """Garante que o banco de dados exista no PostgreSQL."""
     try:
         conn = psycopg2.connect(
@@ -28,10 +30,16 @@ def criar_banco():
             port=DB_CONFIG['port'],
             user=DB_CONFIG['user'],
             password=DB_CONFIG['password'],
-            database='postgres'  # Conecta no banco padrão para criar o DW
+            database='postgres'  # Conecta no banco padrão para criar/dropar o DW
         )
         conn.autocommit = True
         cursor = conn.cursor()
+        
+        # Se passou a flag --fresh, deleta o banco atual primeiro
+        if fresh:
+            logger.info(f"⚠️  Flag --fresh detectada. Apagando banco '{DB_CONFIG['database']}'...")
+            # O WITH (FORCE) derruba conexões ativas (ex: Airflow conectado)
+            cursor.execute(f"DROP DATABASE IF EXISTS {DB_CONFIG['database']} WITH (FORCE);")
         
         cursor.execute(f"CREATE DATABASE {DB_CONFIG['database']} ENCODING 'UTF8';")
         logger.info(f"✅ Banco '{DB_CONFIG['database']}' criado com sucesso!")
@@ -42,7 +50,7 @@ def criar_banco():
     except psycopg2.errors.DuplicateDatabase:
         logger.info(f"ℹ️  Banco '{DB_CONFIG['database']}' já existe. Continuando...")
     except Exception as e:
-        logger.info(f"ℹ️  Verificação de banco: {e}")
+        logger.error(f"❌ Erro ao criar/verificar banco: {e}")
 
 def executar_schema():
     """Executa o schema.sql garantindo que tabelas e tipos existam."""
@@ -69,7 +77,7 @@ def executar_schema():
             if "already exists" in str(e) or "já existe" in str(e):
                 continue
             else:
-                logger.error(f"❌ Erro ao executar instrução SQL: {stmt[:60]}...")
+                logger.error(f"❌ Erro ao executar instrução SQL: {stmt[:60]}...\nDetalhe: {e}")
                 cursor.close()
                 conn.close()
                 raise e
@@ -82,7 +90,10 @@ def main():
     logger.info("🚀 Iniciando setup/verificação do Data Warehouse PRF...")
     logger.info("=" * 50)
     
-    criar_banco()
+    # Verifica se a flag --fresh foi passada no terminal
+    is_fresh = '--fresh' in sys.argv
+    
+    criar_banco(fresh=is_fresh)
     executar_schema()
     
     logger.info("=" * 50)

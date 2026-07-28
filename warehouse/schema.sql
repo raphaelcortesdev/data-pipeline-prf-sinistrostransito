@@ -1,18 +1,18 @@
 -- Criar tipos ENUM
-CREATE TYPE condicao_dia_enum AS ENUM ('Amanhecer', 'Pleno dia', 'Anoitecer', 'Plena Noite');
-CREATE TYPE tipo_pista_enum AS ENUM ('Simples', 'Multipla', 'Dupla');
-CREATE TYPE sentido_via_enum AS ENUM ('Crescente', 'Decrescente');
-CREATE TYPE uso_solo_enum AS ENUM ('Sim', 'Nao');
-CREATE TYPE sexo_enum AS ENUM ('Masculino', 'Feminino');
-CREATE TYPE tipo_envolvido_enum AS ENUM ('Cavaleiro', 'Condutor', 'Passageiro', 'Pedestre', 'Testemunha');
-CREATE TYPE estado_fisico_enum AS ENUM ('Ileso', 'Lesoes Graves', 'Lesoes Leves', 'Obito');
-CREATE TYPE classificacao_enum AS ENUM ('Com Vitimas Fatais', 'Com Vitimas Feridas', 'Sem Vitimas');
+CREATE TYPE condicao_dia_enum AS ENUM ('amanhecer', 'pleno dia', 'anoitecer', 'plena noite');
+CREATE TYPE tipo_pista_enum AS ENUM ('simples', 'multipla', 'dupla');
+CREATE TYPE sentido_via_enum AS ENUM ('crescente', 'decrescente');
+CREATE TYPE uso_solo_enum AS ENUM ('sim', 'nao');
+CREATE TYPE sexo_enum AS ENUM ('masculino', 'feminino');
+CREATE TYPE tipo_envolvido_enum AS ENUM ('cavaleiro', 'condutor', 'passageiro', 'pedestre', 'testemunha');
+CREATE TYPE estado_fisico_enum AS ENUM ('ileso', 'lesoes graves', 'lesoes leves', 'obito');
+CREATE TYPE classificacao_enum AS ENUM ('com vitimas fatais', 'com vitimas feridas', 'sem vitimas');
 
 -- Dimensões
 CREATE TABLE IF NOT EXISTS dim_pessoa (
     pk_pessoa SERIAL PRIMARY KEY,    -- Chave gerada pelo banco (Autoincremento)
-    id_acidente_original INT,        -- Trazido do parquet (row.id)
-    pesid_original INT,              -- Trazido do parquet (row.pesid)
+    id_acidente_original BIGINT,        -- Trazido do parquet (row.id)
+    pesid_original BIGINT,              -- Trazido do parquet (row.pesid)
     idade INT,
     sexo sexo_enum,
     tipo_envolvido tipo_envolvido_enum,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS dim_pessoa (
 
 CREATE TABLE IF NOT EXISTS dim_tempo (
     id_tempo SERIAL PRIMARY KEY,
-    data_hora TIMESTAMP NOT NULL,
+    data_hora TIMESTAMP,
     dia_semana VARCHAR(15),
     fase_dia condicao_dia_enum,
 
@@ -33,8 +33,8 @@ CREATE TABLE IF NOT EXISTS dim_tempo (
 
 CREATE TABLE IF NOT EXISTS dim_local (
     id_local SERIAL PRIMARY KEY,
-    uf CHAR(2) NOT NULL,
-    municipio VARCHAR(50) NOT NULL,
+    uf CHAR(2),
+    municipio VARCHAR(50),
     br INT,
     km FLOAT,
     latitude FLOAT,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS dim_local (
     delegacia VARCHAR(50),
     uop VARCHAR(50),
 
-    UNIQUE (uf, municipio)
+    UNIQUE (uf, municipio, br, km)
 );
 
 CREATE TABLE IF NOT EXISTS dim_pista (
@@ -74,8 +74,8 @@ CREATE TABLE IF NOT EXISTS dim_classificacao (
 
 CREATE TABLE IF NOT EXISTS dim_veiculo (
     pk_veiculo SERIAL PRIMARY KEY,
-    id_acidente_original INT, --recebe id (do acidente) do .parquet
-    id_veiculo_original INT, --recebe id_veiculo do .parquet
+    id_acidente_original BIGINT, --recebe id (do acidente) do .parquet
+    id_veiculo_original BIGINT, --recebe id_veiculo do .parquet
     tipo_veiculo VARCHAR(100),
     marca VARCHAR(100),
     ano_fabricacao_veiculo INT,
@@ -87,14 +87,14 @@ CREATE TABLE IF NOT EXISTS dim_veiculo (
 CREATE TABLE IF NOT EXISTS fato (
     id_fato SERIAL PRIMARY KEY,
     fk_pesid INT NOT NULL,
-    fk_tempo INT NOT NULL,
+    fk_tempo INT,
     fk_local INT NOT NULL,
     fk_classificacao INT,
     fk_clima INT,
     fk_veiculo INT,
     fk_estrada INT,
     
-    UNIQUE(fk_pesid, fk_tempo, fk_local),
+    UNIQUE NULLS NOT DISTINCT(fk_pesid, fk_tempo, fk_local),
     
     FOREIGN KEY (fk_pesid) REFERENCES dim_pessoa(pk_pessoa) ON DELETE RESTRICT,
     FOREIGN KEY (fk_tempo) REFERENCES dim_tempo(id_tempo) ON DELETE RESTRICT,

@@ -72,6 +72,14 @@ def download_and_extract(year: int, download_url: str) -> bool:
         
         logger.info(f"   ✓ Extração concluída")
         
+        # Identifica se existem arquivos nomeados fora do padrão 'acidentes[ano].csv. Se houver, renomeia
+        if not csv_path.exists():
+            for arquivo_extraido in RAW_DIR.glob(f"*{year}*.csv"):
+                if arquivo_extraido.name != csv_path.name:
+                    arquivo_extraido.rename(csv_path)
+                    logger.info(f"   🔄 Renomeado: {arquivo_extraido.name} → {csv_path.name}")
+                    break
+        
         if not csv_path.exists():
             logger.error(f"   ✗ CSV não encontrado após extração: {csv_path.name}")
             return False
@@ -93,7 +101,7 @@ def main(years=None):
     Aceita 'years' como parâmetro para ser chamado diretamente pelo Airflow.
     """
     if years is None:
-        years = list(range(2017, 2026))  # Padrão: 2017 a 2025
+        years = list(range(2007, 2026))  # Padrão: 2007 a 2025
     
     logger.info("=" * 70)
     logger.info("📊 DOWNLOAD DE DADOS PRF")
@@ -134,23 +142,33 @@ def main(years=None):
         failed_years = [y for y, s in results.items() if not s]
         raise RuntimeError(f"Falha ao baixar os dados dos anos: {failed_years}")
 
-if __name__ == "__main__":
-    # Lógica CLI mantida apenas para quando rodar via Terminal
+def obter_anos_filtrados():
+    ''' 
+    Define argumentos para realizar o download de apenas um ano ou um intervalo de anos, ao inves de baixar todos os anos.
+    Ex: 
+        python download_prf_data.py --anos 2008 -> Realiza o download apenas de 2008
+        python download_prf_data.py --anos 2013-2016 -> Realiza o download apenas dos anos de 2013 a 2016
+        retorna None se nenhum argumento for usado -> baixa tudo       
+    '''
     parser = argparse.ArgumentParser(description="Baixa dados PRF do Google Drive")
-    parser.add_argument('--year', type=int, help='Ano específico a baixar')
-    parser.add_argument('--year-range', type=int, nargs=2, metavar=('START', 'END'), help='Range de anos')
-    
+    parser.add_argument('--anos', type=str, help="Ano único (ex: 2016) ou intervalo (ex: 2016-2019)", default=None)
     args = parser.parse_args()
     
-    if args.year:
-        selected_years = [args.year]
-    elif args.year_range:
-        selected_years = list(range(args.year_range[0], args.year_range[1] + 1))
-    else:
-        selected_years = None
+    if args.anos:
+        if '-' in args.anos:
+            inicio, fim = map(int, args.anos.split('-'))
+            return list(range(inicio, fim + 1))
+        else:
+            return [int(args.anos)]
+    return None
+
+if __name__ == "__main__":
+    
+    anos_selecionados = obter_anos_filtrados()
         
     try:
-        main(years=selected_years)
+        # Passa os anos_selecionados para o parâmetro interno 'years' da função main
+        main(years=anos_selecionados)
         sys.exit(0)
     except Exception as e:
         logger.error(f"Erro na execução CLI: {e}")
